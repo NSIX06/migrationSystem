@@ -1,0 +1,138 @@
+﻿-- ============================================================
+-- ServSaude - 04 - validacao de orfaos e criacao de FKs NOT VALID
+-- Origem: servsaude_schema_completo_fks_validacoes.sql
+-- Execute conforme a numeracao do arquivo.
+-- ============================================================
+
+TRUNCATE TABLE public._migration_validation_issues;
+
+SELECT public._add_fk_if_valid('adesao_reducao_margem', 'adesao_id', 'adesoes', 'id', 'fk_adesao_reducao_margem_adesao_id_adesoes');
+SELECT public._add_fk_if_valid('adesoes', 'operadora_id', 'operadoras', 'id', 'fk_adesoes_operadora_id_operadoras');
+SELECT public._add_fk_if_valid('adesoes', 'empresa_id', 'empresas', 'id', 'fk_adesoes_empresa_id_empresas');
+SELECT public._add_fk_if_valid('adesoes', 'secretaria_id', 'secretarias', 'id', 'fk_adesoes_secretaria_id_secretarias');
+SELECT public._add_fk_if_valid('adesoes', 'conveniado_id', 'conveniados', 'id', 'fk_adesoes_conveniado_id_conveniados');
+SELECT public._add_fk_if_valid('adesoes', 'produto_id', 'produtos', 'id', 'fk_adesoes_produto_id_produtos');
+SELECT public._add_fk_if_valid('adesoes', 'produto_preco_id', 'produtos_precos', 'id', 'fk_adesoes_produto_preco_id_produtos_precos');
+SELECT public._add_fk_if_valid('boleto_lancamentos', 'boleto_id', 'boletos', 'id', 'fk_boleto_lancamentos_boleto_id_boletos');
+SELECT public._add_fk_if_valid('boleto_lancamentos', 'lancamento_id', 'lancamentos', 'id', 'fk_boleto_lancamentos_lancamento_id_lancamentos');
+SELECT public._add_fk_if_valid('boletos', 'operadora_id', 'operadoras', 'id', 'fk_boletos_operadora_id_operadoras');
+SELECT public._add_fk_if_valid('boletos', 'pagador_cidade_id', 'cidades', 'id', 'fk_boletos_pagador_cidade_id_cidades');
+SELECT public._add_fk_if_valid('cbhpm', 'cbhpm_edicao_id', 'cbhpm_edicoes', 'id', 'fk_cbhpm_cbhpm_edicao_id_cbhpm_edicoes');
+SELECT public._add_fk_if_valid('cbhpm', 'procedimento_id', 'procedimentos', 'id', 'fk_cbhpm_procedimento_id_procedimentos');
+SELECT public._add_fk_if_valid('cidades', 'estado_id', 'estados', 'id', 'fk_cidades_estado_id_estados');
+SELECT public._add_fk_if_valid('comunicado_portes', 'comunicado_edicao_id', 'comunicado_edicoes', 'id', 'fk_comunicado_portes_comunicado_edicao_id_comunicado_edicoes');
+SELECT public._add_fk_if_valid('contrato_profissionais', 'contrato_id', 'prestador_contratos', 'id', 'fk_contrato_profissionais_contrato_id_prestador_contratos');
+SELECT public._add_fk_if_valid('contrato_profissionais', 'prestador_id', 'prestadores', 'id', 'fk_contrato_profissionais_prestador_id_prestadores');
+SELECT public._add_fk_if_valid('conveniado_salarios', 'conveniado_id', 'conveniados', 'id', 'fk_conveniado_salarios_conveniado_id_conveniados');
+SELECT public._add_fk_if_valid('conveniados', 'naturalidade_cidade_id', 'cidades', 'id', 'fk_conveniados_naturalidade_cidade_id_cidades');
+SELECT public._add_fk_if_valid('conveniados', 'orgao_expedidor_uf_id', 'estados', 'id', 'fk_conveniados_orgao_expedidor_uf_id_estados');
+SELECT public._add_fk_if_valid('conveniados', 'usuario_id', 'users', 'id', 'fk_conveniados_usuario_id_users');
+SELECT public._add_fk_if_valid('conveniados', 'cargo_id', 'cargos', 'id', 'fk_conveniados_cargo_id_cargos');
+SELECT public._add_fk_if_valid('dados_bancarios', 'banco_id', 'bancos', 'id', 'fk_dados_bancarios_banco_id_bancos');
+SELECT public._add_fk_if_valid('deflatores', 'procedimento_grupo_id', 'procedimentos_grupos', 'id', 'fk_deflatores_procedimento_grupo_id_procedimentos_grupos');
+SELECT public._add_fk_if_valid('documentos_credenciamento', 'id', 'documentos_credenciamento', 'id', 'fk_documentos_credenciamento_id_documentos_credenciamento');
+SELECT public._add_fk_if_valid('edital_credenciamento_documentos', 'edital_id', 'editais_credenciamento', 'id', 'fk_edital_credenciamento_documentos_edital_id_editais_creden');
+SELECT public._add_fk_if_valid('edital_credenciamento_documentos', 'documento_credenciamento_id', 'documentos_credenciamento', 'id', 'fk_edital_credenciamento_documentos_documento_credenciamento');
+SELECT public._add_fk_if_valid('empresa_produto', 'empresa_id', 'empresas', 'id', 'fk_empresa_produto_empresa_id_empresas');
+SELECT public._add_fk_if_valid('empresa_produto', 'produto_id', 'produtos', 'id', 'fk_empresa_produto_produto_id_produtos');
+SELECT public._add_fk_if_valid('empresa_user', 'empresa_id', 'empresas', 'id', 'fk_empresa_user_empresa_id_empresas');
+SELECT public._add_fk_if_valid('empresa_user', 'user_id', 'users', 'id', 'fk_empresa_user_user_id_users');
+SELECT public._add_fk_if_valid('empresas_verbas', 'empresa_id', 'empresas', 'id', 'fk_empresas_verbas_empresa_id_empresas');
+SELECT public._add_fk_if_valid('empresas_verbas', 'grupo_verba_id', 'grupo_verbas', 'id', 'fk_empresas_verbas_grupo_verba_id_grupo_verbas');
+SELECT public._add_fk_if_valid('enderecos', 'cidade_id', 'cidades', 'id', 'fk_enderecos_cidade_id_cidades');
+SELECT public._add_fk_if_valid('fiscal_contrato_itens', 'fiscal_contrato_id', 'fiscal_contratos', 'id', 'fk_fiscal_contrato_itens_fiscal_contrato_id_fiscal_contratos');
+SELECT public._add_fk_if_valid('fiscal_contrato_itens', 'contrato_id', 'prestador_contratos', 'id', 'fk_fiscal_contrato_itens_contrato_id_prestador_contratos');
+SELECT public._add_fk_if_valid('fiscal_contratos', 'usuario_id', 'users', 'id', 'fk_fiscal_contratos_usuario_id_users');
+SELECT public._add_fk_if_valid('gestantes', 'conveniado_id', 'conveniados', 'id', 'fk_gestantes_conveniado_id_conveniados');
+SELECT public._add_fk_if_valid('guia_importacoes', 'prestador_id', 'prestadores', 'id', 'fk_guia_importacoes_prestador_id_prestadores');
+SELECT public._add_fk_if_valid('guia_importacoes', 'usuario_id', 'users', 'id', 'fk_guia_importacoes_usuario_id_users');
+SELECT public._add_fk_if_valid('guias', 'usuario_emissor_id', 'users', 'id', 'fk_guias_usuario_emissor_id_users');
+SELECT public._add_fk_if_valid('guias', 'prestador_id', 'prestadores', 'id', 'fk_guias_prestador_id_prestadores');
+SELECT public._add_fk_if_valid('guias', 'profissional_id', 'prestadores', 'id', 'fk_guias_profissional_id_prestadores');
+SELECT public._add_fk_if_valid('guias', 'conveniado_id', 'conveniados', 'id', 'fk_guias_conveniado_id_conveniados');
+SELECT public._add_fk_if_valid('guias', 'solicitante_prestador_id', 'prestadores', 'id', 'fk_guias_solicitante_prestador_id_prestadores');
+SELECT public._add_fk_if_valid('guias', 'lote_pagamento_id', 'lote_pagamentos', 'id', 'fk_guias_lote_pagamento_id_lote_pagamentos');
+SELECT public._add_fk_if_valid('guias', 'guia_origem_id', 'guias', 'id', 'fk_guias_guia_origem_id_guias');
+SELECT public._add_fk_if_valid('guias', 'cancelado_por_user_id', 'users', 'id', 'fk_guias_cancelado_por_user_id_users');
+SELECT public._add_fk_if_valid('guias', 'guia_importacao_id', 'guia_importacoes', 'id', 'fk_guias_guia_importacao_id_guia_importacoes');
+SELECT public._add_fk_if_valid('guias_anexos', 'guia_id', 'guias', 'id', 'fk_guias_anexos_guia_id_guias');
+SELECT public._add_fk_if_valid('guias_atendimentos', 'guia_itens_id', 'guias_itens', 'id', 'fk_guias_atendimentos_guia_itens_id_guias_itens');
+SELECT public._add_fk_if_valid('guias_atendimentos', 'usuario_id', 'users', 'id', 'fk_guias_atendimentos_usuario_id_users');
+SELECT public._add_fk_if_valid('guias_auditoria', 'guia_itens_id', 'guias_itens', 'id', 'fk_guias_auditoria_guia_itens_id_guias_itens');
+SELECT public._add_fk_if_valid('guias_auditoria', 'analise_usuario_id', 'users', 'id', 'fk_guias_auditoria_analise_usuario_id_users');
+SELECT public._add_fk_if_valid('guias_historico', 'guia_id', 'guias', 'id', 'fk_guias_historico_guia_id_guias');
+SELECT public._add_fk_if_valid('guias_historico', 'guia_item_id', 'guias_itens', 'id', 'fk_guias_historico_guia_item_id_guias_itens');
+SELECT public._add_fk_if_valid('guias_historico', 'usuario_id', 'users', 'id', 'fk_guias_historico_usuario_id_users');
+SELECT public._add_fk_if_valid('guias_itens', 'guia_id', 'guias', 'id', 'fk_guias_itens_guia_id_guias');
+SELECT public._add_fk_if_valid('historico_credenciamentos', 'user_id', 'users', 'id', 'fk_historico_credenciamentos_user_id_users');
+SELECT public._add_fk_if_valid('lancamentos', 'boleto_id', 'boletos', 'id', 'fk_lancamentos_boleto_id_boletos');
+SELECT public._add_fk_if_valid('lancamentos', 'operadora_id', 'operadoras', 'id', 'fk_lancamentos_operadora_id_operadoras');
+SELECT public._add_fk_if_valid('lancamentos', 'prestador_id', 'prestadores', 'id', 'fk_lancamentos_prestador_id_prestadores');
+SELECT public._add_fk_if_valid('lancamentos', 'conveniado_id', 'conveniados', 'id', 'fk_lancamentos_conveniado_id_conveniados');
+SELECT public._add_fk_if_valid('lancamentos', 'grupo_verba_id', 'grupo_verbas', 'id', 'fk_lancamentos_grupo_verba_id_grupo_verbas');
+SELECT public._add_fk_if_valid('lancamentos_guias', 'lancamento_id', 'lancamentos', 'id', 'fk_lancamentos_guias_lancamento_id_lancamentos');
+SELECT public._add_fk_if_valid('lancamentos_guias', 'guia_id', 'guias', 'id', 'fk_lancamentos_guias_guia_id_guias');
+SELECT public._add_fk_if_valid('lote_pagamentos', 'prestador_id', 'prestadores', 'id', 'fk_lote_pagamentos_prestador_id_prestadores');
+SELECT public._add_fk_if_valid('lote_pagamentos', 'usuario_id', 'users', 'id', 'fk_lote_pagamentos_usuario_id_users');
+SELECT public._add_fk_if_valid('lote_pagamentos', 'lancamento_id', 'lancamentos', 'id', 'fk_lote_pagamentos_lancamento_id_lancamentos');
+SELECT public._add_fk_if_valid('materiais_itens', 'material_edicao_id', 'material_edicoes', 'id', 'fk_materiais_itens_material_edicao_id_material_edicoes');
+SELECT public._add_fk_if_valid('materiais_itens', 'material_id', 'materiais', 'id', 'fk_materiais_itens_material_id_materiais');
+SELECT public._add_fk_if_valid('medicamento_brasindice', 'medicamento_edicao_id', 'medicamento_edicoes', 'id', 'fk_medicamento_brasindice_medicamento_edicao_id_medicamento_');
+SELECT public._add_fk_if_valid('medicamento_brasindice', 'medicamento_id', 'medicamentos', 'id', 'fk_medicamento_brasindice_medicamento_id_medicamentos');
+SELECT public._add_fk_if_valid('medicamentos', 'laboratorio_id', 'laboratorios', 'id', 'fk_medicamentos_laboratorio_id_laboratorios');
+SELECT public._add_fk_if_valid('medicamentos', 'medicamento_edicao_id', 'medicamento_edicoes', 'id', 'fk_medicamentos_medicamento_edicao_id_medicamento_edicoes');
+SELECT public._add_fk_if_valid('mensalidades', 'conveniado_id', 'conveniados', 'id', 'fk_mensalidades_conveniado_id_conveniados');
+SELECT public._add_fk_if_valid('mensalidades', 'produto_preco_id', 'produtos_precos', 'id', 'fk_mensalidades_produto_preco_id_produtos_precos');
+SELECT public._add_fk_if_valid('mensalidades', 'grupo_verba_id', 'grupo_verbas', 'id', 'fk_mensalidades_grupo_verba_id_grupo_verbas');
+SELECT public._add_fk_if_valid('motivo_encerramentos', 'id', 'motivo_encerramentos', 'id', 'fk_motivo_encerramentos_id_motivo_encerramentos');
+SELECT public._add_fk_if_valid('operadora_user', 'operadora_id', 'operadoras', 'id', 'fk_operadora_user_operadora_id_operadoras');
+SELECT public._add_fk_if_valid('operadora_user', 'user_id', 'users', 'id', 'fk_operadora_user_user_id_users');
+SELECT public._add_fk_if_valid('permission_role', 'permission_id', 'permissions', 'id', 'fk_permission_role_permission_id_permissions');
+SELECT public._add_fk_if_valid('permission_role', 'role_id', 'roles', 'id', 'fk_permission_role_role_id_roles');
+SELECT public._add_fk_if_valid('prestador_contrato_itens', 'prestadores_contratos_id', 'prestador_contratos', 'id', 'fk_prestador_contrato_itens_prestadores_contratos_id_prestad');
+SELECT public._add_fk_if_valid('prestador_contrato_itens', 'edicao_medicamento_id', 'medicamento_edicoes', 'id', 'fk_prestador_contrato_itens_edicao_medicamento_id_medicament');
+SELECT public._add_fk_if_valid('prestador_contrato_itens', 'tabela_precos_id', 'tabela_precos', 'id', 'fk_prestador_contrato_itens_tabela_precos_id_tabela_precos');
+SELECT public._add_fk_if_valid('prestador_contrato_itens', 'motivo_encerramento_id', 'motivo_encerramentos', 'id', 'fk_prestador_contrato_itens_motivo_encerramento_id_motivo_en');
+SELECT public._add_fk_if_valid('prestador_contratos', 'prestador_id', 'prestadores', 'id', 'fk_prestador_contratos_prestador_id_prestadores');
+SELECT public._add_fk_if_valid('prestador_especialidades', 'prestador_id', 'prestadores', 'id', 'fk_prestador_especialidades_prestador_id_prestadores');
+SELECT public._add_fk_if_valid('prestador_especialidades', 'especialidade_id', 'especialidades', 'id', 'fk_prestador_especialidades_especialidade_id_especialidades');
+SELECT public._add_fk_if_valid('prestador_user', 'prestador_id', 'prestadores', 'id', 'fk_prestador_user_prestador_id_prestadores');
+SELECT public._add_fk_if_valid('prestador_user', 'user_id', 'users', 'id', 'fk_prestador_user_user_id_users');
+SELECT public._add_fk_if_valid('prestadores', 'usuario_id', 'users', 'id', 'fk_prestadores_usuario_id_users');
+SELECT public._add_fk_if_valid('prestadores', 'prestadores_classificacao_estabelecimento_id', 'prestadores_classificacao_estabelecimento', 'id', 'fk_prestadores_prestadores_classificacao_estabelecimento_id_');
+SELECT public._add_fk_if_valid('prestadores', 'orgao_expedidor_uf_id', 'estados', 'id', 'fk_prestadores_orgao_expedidor_uf_id_estados');
+SELECT public._add_fk_if_valid('prestadores', 'naturalidade_cidade_id', 'cidades', 'id', 'fk_prestadores_naturalidade_cidade_id_cidades');
+SELECT public._add_fk_if_valid('prestadores', 'prestador_tipo_id', 'prestador_tipos', 'id', 'fk_prestadores_prestador_tipo_id_prestador_tipos');
+SELECT public._add_fk_if_valid('procedimento_subgrupos', 'grupo_id', 'procedimentos_grupos', 'id', 'fk_procedimento_subgrupos_grupo_id_procedimentos_grupos');
+SELECT public._add_fk_if_valid('procedimentos', 'procedimento_subgrupo_id', 'procedimento_subgrupos', 'id', 'fk_procedimentos_procedimento_subgrupo_id_procedimento_subgr');
+SELECT public._add_fk_if_valid('produtos', 'operadora_id', 'operadoras', 'id', 'fk_produtos_operadora_id_operadoras');
+SELECT public._add_fk_if_valid('produtos_precos', 'produto_id', 'produtos', 'id', 'fk_produtos_precos_produto_id_produtos');
+SELECT public._add_fk_if_valid('produtos_precos', 'tipo_vinculo_id', 'tipo_vinculos', 'id', 'fk_produtos_precos_tipo_vinculo_id_tipo_vinculos');
+SELECT public._add_fk_if_valid('produtos_precos', 'grupo_verba_id', 'grupo_verbas', 'id', 'fk_produtos_precos_grupo_verba_id_grupo_verbas');
+SELECT public._add_fk_if_valid('regra_cooparticipacao', 'produto_id', 'produtos', 'id', 'fk_regra_cooparticipacao_produto_id_produtos');
+SELECT public._add_fk_if_valid('regra_cooparticipacao_itens', 'regra_cooparticipacao_id', 'regra_cooparticipacao', 'id', 'fk_regra_cooparticipacao_itens_regra_cooparticipacao_id_regr');
+SELECT public._add_fk_if_valid('regra_cooparticipacao_procedimentos', 'regra_cooparticipacao_id', 'regra_cooparticipacao', 'id', 'fk_regra_cooparticipacao_procedimentos_regra_cooparticipacao');
+SELECT public._add_fk_if_valid('regra_cooparticipacao_procedimentos', 'grupo_procedimento_id', 'procedimentos_grupos', 'id', 'fk_regra_cooparticipacao_procedimentos_grupo_procedimento_id');
+SELECT public._add_fk_if_valid('regra_cooparticipacao_procedimentos', 'subgrupo_procedimento_id', 'procedimento_subgrupos', 'id', 'fk_regra_cooparticipacao_procedimentos_subgrupo_procedimento');
+SELECT public._add_fk_if_valid('regra_cooparticipacao_procedimentos', 'procedimento_id', 'procedimentos', 'id', 'fk_regra_cooparticipacao_procedimentos_procedimento_id_proce');
+SELECT public._add_fk_if_valid('remessa_desconto', 'empresa_id', 'empresas', 'id', 'fk_remessa_desconto_empresa_id_empresas');
+SELECT public._add_fk_if_valid('remessa_desconto_item', 'remessa_desconto_id', 'remessa_desconto', 'id', 'fk_remessa_desconto_item_remessa_desconto_id_remessa_descont');
+SELECT public._add_fk_if_valid('remessa_desconto_item', 'adesao_id', 'adesoes', 'id', 'fk_remessa_desconto_item_adesao_id_adesoes');
+SELECT public._add_fk_if_valid('role_user', 'user_id', 'users', 'id', 'fk_role_user_user_id_users');
+SELECT public._add_fk_if_valid('role_user', 'role_id', 'roles', 'id', 'fk_role_user_role_id_roles');
+SELECT public._add_fk_if_valid('secretarias', 'empresa_id', 'empresas', 'id', 'fk_secretarias_empresa_id_empresas');
+SELECT public._add_fk_if_valid('solicitacoes_atualizacao_cadastral', 'prestador_id', 'prestadores', 'id', 'fk_solicitacoes_atualizacao_cadastral_prestador_id_prestador');
+SELECT public._add_fk_if_valid('solicitacoes_atualizacao_cadastral', 'conveniado_id', 'conveniados', 'id', 'fk_solicitacoes_atualizacao_cadastral_conveniado_id_convenia');
+SELECT public._add_fk_if_valid('solicitacoes_atualizacao_cadastral', 'cidade_id', 'cidades', 'id', 'fk_solicitacoes_atualizacao_cadastral_cidade_id_cidades');
+SELECT public._add_fk_if_valid('solicitacoes_credenciamento', 'edital_credenciamento_id', 'editais_credenciamento', 'id', 'fk_solicitacoes_credenciamento_edital_credenciamento_id_edit');
+SELECT public._add_fk_if_valid('solicitacoes_credenciamento_documentos', 'solicitacoes_credenciamento_id', 'solicitacoes_credenciamento', 'id', 'fk_solicitacoes_credenciamento_documentos_solicitacoes_crede');
+SELECT public._add_fk_if_valid('solicitacoes_credenciamento_documentos', 'documento_credenciamento_id', 'documentos_credenciamento', 'id', 'fk_solicitacoes_credenciamento_documentos_documento_credenci');
+SELECT public._add_fk_if_valid('tabela_precos', 'comunicado_edicao_id', 'comunicado_edicoes', 'id', 'fk_tabela_precos_comunicado_edicao_id_comunicado_edicoes');
+SELECT public._add_fk_if_valid('tabela_precos', 'cbhpm_edicao_id', 'cbhpm_edicoes', 'id', 'fk_tabela_precos_cbhpm_edicao_id_cbhpm_edicoes');
+SELECT public._add_fk_if_valid('tabela_precos', 'material_edicao_id', 'material_edicoes', 'id', 'fk_tabela_precos_material_edicao_id_material_edicoes');
+SELECT public._add_fk_if_valid('tabela_precos_itens', 'tabela_preco_id', 'tabela_precos', 'id', 'fk_tabela_precos_itens_tabela_preco_id_tabela_precos');
+
+-- ============================================================
+-- ValidaÃ§Ãµes CHECK recomendadas
+-- ============================================================
+
