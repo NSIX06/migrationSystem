@@ -1,0 +1,1954 @@
+// ============================================================
+// ServSaúde — Prisma Schema
+// Novo sistema: Next.js + Supabase PostgreSQL
+// Gerado a partir da análise do banco legado
+// ============================================================
+//
+// Decisões de design:
+// - Auth via Supabase Auth (UUID); sem tabela `users` própria
+// - Polimórficos eliminados — FKs explícitas por entidade
+// - Enums tipados para todos os campos integer de status/tipo
+// - Artefatos Laravel removidos (failed_jobs, migrations, menus, personal_access_tokens)
+// - Soft delete padronizado com deletedAt em todas as entidades de negócio
+// - Credenciais sensíveis fora do schema (env vars / Supabase Vault)
+// - Campos `disk` substituídos por `fotoUrl`/`arquivoUrl` (Supabase Storage)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserTypeEnum {
+  ADMIN
+  GESTOR
+  ATENDIMENTO
+  FINANCEIRO
+  AUDITORIA
+  CREDENCIAMENTO
+  BENEFICIARIO
+  PRESTADOR
+  VISUALIZADOR
+}
+
+enum UserStatusEnum {
+  ATIVO
+  INATIVO
+  BLOQUEADO
+  PENDENTE
+}
+
+enum SexoEnum {
+  MASCULINO
+  FEMININO
+}
+
+enum EstadoCivilEnum {
+  SOLTEIRO
+  CASADO
+  SEPARADO
+  DIVORCIADO
+  VIUVO
+  UNIAO_ESTAVEL
+  OUTRO
+}
+
+enum PcdEnum {
+  SIM
+  NAO
+}
+
+enum StatusAdesaoEnum {
+  ATIVO
+  SUSPENSO
+  ENCERRADO
+}
+
+enum TipoClienteEnum {
+  TITULAR
+  DEPENDENTE
+  AGREGADO
+}
+
+enum TipoPrestadorEnum {
+  PESSOA_FISICA
+  PESSOA_JURIDICA
+}
+
+enum StatusGuiaEnum {
+  SOLICITADA
+  AUTORIZADA
+  NEGADA
+  EM_AUDITORIA
+  CANCELADA
+  FATURADA
+}
+
+enum TipoGuiaEnum {
+  CONSULTA
+  SADT
+  INTERNACAO
+  HONORARIO
+  OUTROS
+}
+
+enum CaraterAtendimentoEnum {
+  ELETIVO
+  URGENCIA_EMERGENCIA
+}
+
+enum StatusLancamentoEnum {
+  ABERTO
+  PAGO
+  CANCELADO
+  VENCIDO
+}
+
+enum TipoLancamentoEnum {
+  MENSALIDADE
+  COPARTICIPACAO
+  PAGAMENTO_PRESTADOR
+  ESTORNO
+  OUTROS
+}
+
+enum StatusBoletoEnum {
+  EMITIDO
+  PAGO
+  CANCELADO
+  VENCIDO
+  BAIXADO_MANUALMENTE
+}
+
+enum StatusLoteEnum {
+  ABERTO
+  PROCESSADO
+  PAGO
+}
+
+enum TipoGuiaItemEnum {
+  PROCEDIMENTO
+  MEDICAMENTO
+  MATERIAL
+  TAXA
+  HONORARIO
+}
+
+enum TipoAbrangenciaEnum {
+  MUNICIPAL
+  ESTADUAL
+  NACIONAL
+}
+
+enum TipoAcomodacaoEnum {
+  ENFERMARIA
+  APARTAMENTO
+  UTI
+}
+
+enum TipoContratacaoEnum {
+  COLETIVO_EMPRESARIAL
+  COLETIVO_POR_ADESAO
+  INDIVIDUAL
+}
+
+enum TipoCarenciaEnum {
+  SEM_CARENCIA
+  CARENCIA_PADRAO
+  CARENCIA_REDUZIDA
+}
+
+enum StatusCredenciamentoEnum {
+  SOLICITADO
+  EM_ANALISE
+  APROVADO
+  REPROVADO
+  CANCELADO
+}
+
+// ============================================================
+// MÓDULO: GEOGRAFIA
+// ============================================================
+
+model Estado {
+  id        BigInt    @id @default(autoincrement())
+  nome      String    @db.VarChar(255)
+  uf        String    @db.VarChar(2)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  cidades              Cidade[]
+  conveniados          Conveniado[]   @relation("OrgaoExpedidorUf")
+  prestadores          Prestador[]    @relation("OrgaoExpedidorUfPrestador")
+  prestadoresNat       Prestador[]    @relation("NaturalidadeEstadoPrestador")
+
+  @@index([uf])
+  @@map("estados")
+}
+
+model Cidade {
+  id        BigInt    @id @default(autoincrement())
+  estadoId  BigInt    @map("estado_id")
+  nome      String    @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  estado               Estado          @relation(fields: [estadoId], references: [id])
+  conveniados          Conveniado[]    @relation("NaturalidadeCidade")
+  prestadores          Prestador[]     @relation("NaturalidadeCidadePrestador")
+  boletos              Boleto[]
+  enderecos            Endereco[]
+  solicitacoesAtualizacao SolicitacaoAtualizacaoCadastral[]
+
+  @@index([estadoId])
+  @@index([nome])
+  @@map("cidades")
+}
+
+model Endereco {
+  id         BigInt    @id @default(autoincrement())
+  cidadeId   BigInt    @map("cidade_id")
+  entidadeTipo String  @db.VarChar(50) @map("entidade_tipo")
+  entidadeId BigInt    @map("entidade_id")
+  tipo       Int
+  cep        String    @db.Text
+  logradouro String    @db.Text
+  numero     String?   @db.Text
+  complemento String?  @db.Text
+  bairro     String?   @db.Text
+  principal  Boolean   @default(false)
+  ativo      Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  cidade Cidade @relation(fields: [cidadeId], references: [id])
+
+  @@index([cidadeId])
+  @@index([entidadeTipo, entidadeId])
+  @@map("enderecos")
+}
+
+// ============================================================
+// MÓDULO: ADMINISTRAÇÃO
+// ============================================================
+
+model Operadora {
+  id                       BigInt    @id @default(autoincrement())
+  nome                     String    @db.VarChar(255)
+  razaoSocial              String    @db.VarChar(255) @map("razao_social")
+  tipo                     Int       @db.SmallInt
+  cpfCnpj                  String    @db.VarChar(255) @map("cpf_cnpj")
+  inscricaoMunicipal       String?   @db.VarChar(255) @map("inscricao_municipal")
+  inscricaoEstadual        String?   @db.VarChar(255) @map("inscricao_estadual")
+  fone                     String?   @db.VarChar(255)
+  email                    String?   @db.VarChar(255)
+  codigoAns                String?   @db.VarChar(6) @map("codigo_ans")
+  tipoDeclarante           Int       @map("tipo_declarante")
+  cpfResponsavel           String    @db.VarChar(255) @map("cpf_responsavel")
+  indicadorSituacaoDeclaracao String @db.VarChar(255) @map("indicador_situacao_declaracao")
+  cnes                     String?   @db.VarChar(7)
+  ativo                    Boolean   @default(true)
+  percentualMaxDescontoCoparticipacao Decimal @default(24.9) @db.Decimal(8,2) @map("percentual_max_desconto_coparticipacao")
+  // Boleto config (referências apenas — secrets em env vars)
+  boletoNrConvenio         Int?      @map("boleto_nr_convenio")
+  boletoNrCarteira         Int?      @map("boleto_nr_carteira")
+  boletoAmbiente           Int?      @default(1) @map("boleto_ambiente")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+  deletedAt                DateTime? @map("deleted_at")
+
+  produtos     Produto[]
+  usuarios     OperadoraUsuario[]
+  boletos      Boleto[]
+  lancamentos  Lancamento[]
+  guias        Guia[]
+  adesoes      Adesao[]
+
+  @@unique([cpfCnpj])
+  @@index([ativo])
+  @@map("operadoras")
+}
+
+model Profile {
+  // userId = UUID do Supabase Auth (sem FK — gerenciado pela auth)
+  userId      String         @id @map("user_id") @db.Uuid
+  nome        String         @db.VarChar(255)
+  email       String         @db.VarChar(255)
+  cpf         String?        @db.VarChar(14)
+  fone        String?        @db.VarChar(20)
+  userType    UserTypeEnum   @map("user_type")
+  status      UserStatusEnum @default(ATIVO)
+  conveniadoId BigInt?       @map("conveniado_id")
+  prestadorId  BigInt?       @map("prestador_id")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  deletedAt   DateTime?      @map("deleted_at")
+
+  conveniado   Conveniado?      @relation(fields: [conveniadoId], references: [id])
+  prestador    Prestador?       @relation(fields: [prestadorId], references: [id])
+  roles        UsuarioRole[]
+  permissoes   PermissaoUsuario[]
+
+  @@index([email])
+  @@index([userType])
+  @@index([status])
+  @@map("profiles")
+}
+
+model Role {
+  id        BigInt    @id @default(autoincrement())
+  nome      String    @db.VarChar(255)
+  slug      String    @db.VarChar(255)
+  descricao String?   @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  permissoes  RolePermissao[]
+  usuarios    UsuarioRole[]
+
+  @@unique([slug])
+  @@map("roles")
+}
+
+model Permissao {
+  id        BigInt    @id @default(autoincrement())
+  modulo    String    @db.VarChar(255)
+  nome      String    @db.VarChar(255)
+  slug      String    @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  descricao String?   @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  roles     RolePermissao[]
+  usuarios  PermissaoUsuario[]
+
+  @@unique([slug])
+  @@index([modulo])
+  @@map("permissoes")
+}
+
+model RolePermissao {
+  roleId      BigInt @map("role_id")
+  permissaoId BigInt @map("permissao_id")
+
+  role      Role      @relation(fields: [roleId], references: [id])
+  permissao Permissao @relation(fields: [permissaoId], references: [id])
+
+  @@id([roleId, permissaoId])
+  @@map("role_permissoes")
+}
+
+model PermissaoUsuario {
+  userId      String  @map("user_id") @db.Uuid
+  permissaoId BigInt  @map("permissao_id")
+  concedido   Boolean @default(true)
+
+  profile   Profile   @relation(fields: [userId], references: [userId])
+  permissao Permissao @relation(fields: [permissaoId], references: [id])
+
+  @@id([userId, permissaoId])
+  @@map("permissao_usuarios")
+}
+
+model UsuarioRole {
+  userId String @map("user_id") @db.Uuid
+  roleId BigInt @map("role_id")
+
+  profile Profile @relation(fields: [userId], references: [userId])
+  role    Role    @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+  @@map("usuario_roles")
+}
+
+model OperadoraUsuario {
+  operadoraId BigInt @map("operadora_id")
+  userId      String @map("user_id") @db.Uuid
+
+  operadora Operadora @relation(fields: [operadoraId], references: [id])
+
+  @@id([operadoraId, userId])
+  @@map("operadora_usuarios")
+}
+
+// ============================================================
+// MÓDULO: EMPRESAS / CONVENIADAS
+// ============================================================
+
+model Empresa {
+  id                BigInt    @id @default(autoincrement())
+  tipo              Int       @db.SmallInt
+  cpfCnpj           String    @db.VarChar(255) @map("cpf_cnpj")
+  nome              String    @db.VarChar(255)
+  razaoSocial       String    @db.VarChar(255) @map("razao_social")
+  abreviado         String?   @db.Text
+  fone              String?   @db.VarChar(255)
+  email             String?   @db.VarChar(255)
+  contato           String?   @db.VarChar(255)
+  ativo             Boolean   @default(true)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  secretarias    Secretaria[]
+  adesoes        Adesao[]
+  verbas         EmpresaVerba[]
+  produtos       EmpresaProduto[]
+  usuarios       EmpresaUsuario[]
+  remessas       RemessaDesconto[]
+
+  @@unique([cpfCnpj])
+  @@index([ativo])
+  @@map("empresas")
+}
+
+model EmpresaUsuario {
+  empresaId BigInt @map("empresa_id")
+  userId    String @map("user_id") @db.Uuid
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@id([empresaId, userId])
+  @@map("empresa_usuarios")
+}
+
+model Secretaria {
+  id                BigInt    @id @default(autoincrement())
+  empresaId         BigInt    @map("empresa_id")
+  nome              String    @db.VarChar(255)
+  razaoSocial       String    @db.VarChar(255) @map("razao_social")
+  cpfCnpj           String?   @db.VarChar(255) @map("cpf_cnpj")
+  abreviado         String?   @db.VarChar(255)
+  fone              String?   @db.VarChar(255)
+  email             String?   @db.VarChar(255)
+  contato           String?   @db.VarChar(255)
+  ativo             Boolean   @default(true)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  adesoes Adesao[]
+
+  @@index([empresaId])
+  @@map("secretarias")
+}
+
+// ============================================================
+// MÓDULO: BENEFICIÁRIOS
+// ============================================================
+
+model Cargo {
+  id        BigInt    @id @default(autoincrement())
+  descricao String    @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  conveniados Conveniado[]
+
+  @@map("cargos")
+}
+
+model Conveniado {
+  id                    BigInt          @id @default(autoincrement())
+  orgaoExpedidorUfId    BigInt?         @map("orgao_expedidor_uf_id")
+  naturalidadeCidadeId  BigInt          @map("naturalidade_cidade_id")
+  // userId = UUID do Supabase Auth (sem FK explícita — gerenciado pela auth)
+  userId                String          @map("user_id") @db.Uuid
+  cargoId               BigInt?         @map("cargo_id")
+  nome                  String          @db.VarChar(255)
+  cpf                   String          @db.VarChar(14)
+  dataNascimento        DateTime        @map("data_nascimento") @db.Date
+  sexo                  SexoEnum
+  rg                    String?         @db.VarChar(255)
+  orgaoExpedidor        String?         @db.VarChar(255) @map("orgao_expedidor")
+  cns                   String?         @db.VarChar(255)
+  nomePai               String?         @db.VarChar(255) @map("nome_pai")
+  nomeMae               String          @db.VarChar(255) @map("nome_mae")
+  fone1                 String?         @db.VarChar(255)
+  fone2                 String?         @db.VarChar(255)
+  email                 String?         @db.VarChar(255)
+  fotoUrl               String?         @map("foto_url") @db.Text
+  estadoCivil           EstadoCivilEnum @default(SOLTEIRO) @map("estado_civil")
+  pcd                   PcdEnum         @default(NAO)
+  ativo                 Boolean         @default(true)
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+  deletedAt             DateTime?       @map("deleted_at")
+
+  orgaoExpedidorUf     Estado?          @relation("OrgaoExpedidorUf", fields: [orgaoExpedidorUfId], references: [id])
+  naturalidadeCidade   Cidade           @relation("NaturalidadeCidade", fields: [naturalidadeCidadeId], references: [id])
+  cargo                Cargo?           @relation(fields: [cargoId], references: [id])
+  adesoes              Adesao[]
+  salarios             ConveniadoSalario[]
+  gestante             Gestante?
+  guias                Guia[]
+  lancamentos          Lancamento[]
+  mensalidades         Mensalidade[]
+  solicitacoesAtualizacao SolicitacaoAtualizacaoCadastral[]
+  profiles                Profile[]
+
+  @@unique([cpf])
+  @@index([ativo])
+  @@index([userId])
+  @@map("conveniados")
+}
+
+model ConveniadoSalario {
+  id               BigInt    @id @default(autoincrement())
+  conveniadoId     BigInt    @map("conveniado_id")
+  salario          Decimal   @db.Decimal(8,2)
+  dataCompetencia  DateTime  @map("data_competencia") @db.Date
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  conveniado Conveniado @relation(fields: [conveniadoId], references: [id])
+
+  @@index([conveniadoId])
+  @@map("conveniado_salarios")
+}
+
+model Gestante {
+  id                   BigInt    @id @default(autoincrement())
+  conveniadoId         BigInt    @unique @map("conveniado_id")
+  dataInicioGestacao   DateTime  @default(now()) @map("data_inicio_gestacao") @db.Date
+  dataFinalGestacao    DateTime? @map("data_final_gestacao") @db.Date
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  deletedAt            DateTime? @map("deleted_at")
+
+  conveniado Conveniado @relation(fields: [conveniadoId], references: [id])
+
+  @@map("gestantes")
+}
+
+model GrauParentesco {
+  id        BigInt    @id @default(autoincrement())
+  nome      String    @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("grau_parentesco")
+}
+
+// ============================================================
+// MÓDULO: PRODUTOS E PLANOS
+// ============================================================
+
+model TipoVinculo {
+  id        BigInt    @id @default(autoincrement())
+  tipo      Int       @db.SmallInt
+  descricao String    @db.Text
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  produtosPrecos ProdutoPreco[]
+
+  @@map("tipo_vinculos")
+}
+
+model Produto {
+  id               BigInt             @id @default(autoincrement())
+  operadoraId      BigInt             @map("operadora_id")
+  descricao        String             @db.VarChar(255)
+  abrangencia      TipoAbrangenciaEnum
+  tipoContratacao  TipoContratacaoEnum @map("tipo_contratacao")
+  tipoCarencia     TipoCarenciaEnum   @map("tipo_carencia")
+  tipoAcomodacao   TipoAcomodacaoEnum @map("tipo_acomodacao")
+  dataInicio       DateTime           @map("data_inicio") @db.Date
+  dataFim          DateTime?          @map("data_fim") @db.Date
+  ativo            Boolean            @default(true)
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  deletedAt        DateTime?          @map("deleted_at")
+
+  operadora         Operadora           @relation(fields: [operadoraId], references: [id])
+  precos            ProdutoPreco[]
+  adesoes           Adesao[]
+  empresas          EmpresaProduto[]
+  regrasCopart      RegraCoparticipacao[]
+
+  @@index([operadoraId])
+  @@index([ativo])
+  @@map("produtos")
+}
+
+model ProdutoPreco {
+  id            BigInt    @id @default(autoincrement())
+  produtoId     BigInt    @map("produto_id")
+  tipoVinculoId BigInt?   @map("tipo_vinculo_id")
+  grupoVerbaId  BigInt?   @map("grupo_verba_id")
+  idadeInicial  Int       @map("idade_inicial")
+  idadeFinal    Int       @map("idade_final")
+  tipoCobranca  Int       @map("tipo_cobranca")
+  tipoCliente   TipoClienteEnum @map("tipo_cliente")
+  descricao     String    @db.VarChar(255)
+  valor         Decimal   @db.Decimal(8,2)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  produto      Produto      @relation(fields: [produtoId], references: [id])
+  tipoVinculo  TipoVinculo? @relation(fields: [tipoVinculoId], references: [id])
+  grupoVerba   GrupoVerba?  @relation(fields: [grupoVerbaId], references: [id])
+  adesoes      Adesao[]
+  mensalidades Mensalidade[]
+
+  @@index([produtoId])
+  @@map("produtos_precos")
+}
+
+model EmpresaProduto {
+  empresaId BigInt @map("empresa_id")
+  produtoId BigInt @map("produto_id")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  produto Produto @relation(fields: [produtoId], references: [id])
+
+  @@id([empresaId, produtoId])
+  @@map("empresa_produtos")
+}
+
+model RegraCoparticipacao {
+  id                    BigInt    @id @default(autoincrement())
+  produtoId             BigInt    @map("produto_id")
+  nome                  String    @db.Text
+  tempoCarencia         Int?      @map("tempo_carencia")
+  carencia              Boolean
+  semLimiteParaGestante Boolean   @default(false) @map("sem_limite_para_gestante")
+  auditoria             Boolean
+  ativo                 Boolean
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  produto     Produto                     @relation(fields: [produtoId], references: [id])
+  itens       RegraCoparticipacaoItem[]
+  procedimentos RegraCoparticipacaoProcedimento[]
+
+  @@index([produtoId])
+  @@map("regras_coparticipacao")
+}
+
+model RegraCoparticipacaoItem {
+  id                      BigInt    @id @default(autoincrement())
+  regraCoparticipacaoId   BigInt    @map("regra_coparticipacao_id")
+  qtdeInicial             Int       @map("qtde_inicial")
+  qtdeFinal               Int       @map("qtde_final")
+  percentualCoparticipacao Decimal  @db.Decimal(8,2) @map("percentual_coparticipacao")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  deletedAt               DateTime? @map("deleted_at")
+
+  regra RegraCoparticipacao @relation(fields: [regraCoparticipacaoId], references: [id])
+
+  @@map("regras_coparticipacao_itens")
+}
+
+model RegraCoparticipacaoProcedimento {
+  id                    BigInt    @id @default(autoincrement())
+  tipo                  Int       @db.SmallInt @default(1)
+  regraCoparticipacaoId BigInt    @map("regra_coparticipacao_id")
+  grupoProcedimentoId   Int       @map("grupo_procedimento_id")
+  subgrupoProcedimentoId Int?     @map("subgrupo_procedimento_id")
+  procedimentoId        Int?      @map("procedimento_id")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  regra              RegraCoparticipacao    @relation(fields: [regraCoparticipacaoId], references: [id])
+  grupoProcedimento  ProcedimentoGrupo      @relation(fields: [grupoProcedimentoId], references: [id])
+  subgrupoProcedimento ProcedimentoSubgrupo? @relation(fields: [subgrupoProcedimentoId], references: [id])
+  procedimento       Procedimento?          @relation(fields: [procedimentoId], references: [id])
+
+  @@map("regras_coparticipacao_procedimentos")
+}
+
+// ============================================================
+// MÓDULO: ADESÕES
+// ============================================================
+
+model MotivoEncerramento {
+  id        BigInt    @id @default(autoincrement())
+  motivo    String    @db.VarChar(255)
+  tipo      Int       @db.SmallInt @default(1)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  adesoes                Adesao[]
+  prestadorContratoItens PrestadorContratoItem[]
+
+  @@map("motivo_encerramentos")
+}
+
+model Adesao {
+  id                        BigInt           @id @default(autoincrement())
+  operadoraId               BigInt           @map("operadora_id")
+  empresaId                 BigInt?          @map("empresa_id")
+  secretariaId              BigInt?          @map("secretaria_id")
+  conveniadoId              BigInt           @map("conveniado_id")
+  produtoId                 BigInt           @map("produto_id")
+  produtoPrecoId            BigInt?          @map("produto_preco_id")
+  motivoEncerramentoId      BigInt?          @map("motivo_encerramento_id")
+  grupoFamiliar             Int?             @map("grupo_familiar")
+  matricula                 String?          @db.VarChar(255)
+  tipoCliente               TipoClienteEnum  @map("tipo_cliente")
+  status                    StatusAdesaoEnum @default(ATIVO)
+  dataInicio                DateTime         @map("data_inicio") @db.Date
+  dataFim                   DateTime?        @map("data_fim") @db.Date
+  dataPrimeiroPgto          DateTime?        @map("data_primeiro_pgto") @db.Date
+  justificativaEncerramento String?          @db.VarChar(255) @map("justificativa_encerramento")
+  dv                        String?          @db.VarChar(255)
+  salarioAtual              Decimal?         @db.Decimal(13,2) @map("salario_atual")
+  createdAt                 DateTime         @default(now()) @map("created_at")
+  updatedAt                 DateTime         @updatedAt @map("updated_at")
+  deletedAt                 DateTime?        @map("deleted_at")
+
+  operadora          Operadora          @relation(fields: [operadoraId], references: [id])
+  empresa            Empresa?           @relation(fields: [empresaId], references: [id])
+  secretaria         Secretaria?        @relation(fields: [secretariaId], references: [id])
+  conveniado         Conveniado         @relation(fields: [conveniadoId], references: [id])
+  produto            Produto            @relation(fields: [produtoId], references: [id])
+  produtoPreco       ProdutoPreco?      @relation(fields: [produtoPrecoId], references: [id])
+  motivoEncerramento MotivoEncerramento? @relation(fields: [motivoEncerramentoId], references: [id])
+  reducoesMargemConsignavel AdesaoReducaoMargem[]
+  remessaItens       RemessaDescontoItem[]
+
+  @@index([conveniadoId])
+  @@index([status])
+  @@index([operadoraId])
+  @@map("adesoes")
+}
+
+model AdesaoReducaoMargem {
+  id          BigInt    @id @default(autoincrement())
+  adesaoId    BigInt    @map("adesao_id")
+  tipoReducao Int       @map("tipo_reducao")
+  valor       Decimal   @db.Decimal(8,2)
+  dataInicio  DateTime  @map("data_inicio") @db.Date
+  dataFim     DateTime  @map("data_fim") @db.Date
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  adesao Adesao @relation(fields: [adesaoId], references: [id])
+
+  @@index([adesaoId])
+  @@map("adesao_reducao_margem")
+}
+
+// ============================================================
+// MÓDULO: PRESTADORES
+// ============================================================
+
+model PrestadorTipo {
+  id        BigInt    @id @default(autoincrement())
+  descricao String    @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  prestadores Prestador[]
+
+  @@map("prestador_tipos")
+}
+
+model PrestadorClassificacaoEstabelecimento {
+  id        BigInt    @id @default(autoincrement())
+  nome      String    @db.VarChar(255)
+  codigo    String    @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  prestadores Prestador[]
+
+  @@map("prestadores_classificacao_estabelecimento")
+}
+
+model Especialidade {
+  id        BigInt    @id @default(autoincrement())
+  descricao String    @db.VarChar(255)
+  cbo       String    @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  prestadores PrestadorEspecialidade[]
+
+  @@map("especialidades")
+}
+
+model Prestador {
+  id                                     BigInt    @id @default(autoincrement())
+  prestadoresClassificacaoEstabelecimentoId BigInt @map("prestadores_classificacao_estabelecimento_id")
+  prestadorTipoId                        BigInt?   @map("prestador_tipo_id")
+  orgaoExpedidorUfId                     BigInt?   @map("orgao_expedidor_uf_id")
+  naturalidadeEstadoId                   BigInt?   @map("naturalidade_estado_id")
+  naturalidadeCidadeId                   BigInt?   @map("naturalidade_cidade_id")
+  userId                                 String?   @map("user_id") @db.Uuid
+  tipo                                   TipoPrestadorEnum
+  nome                                   String    @db.VarChar(255)
+  razaoSocial                            String    @db.VarChar(255) @map("razao_social")
+  abreviado                              String?   @db.Text
+  cpfCnpj                                String    @db.VarChar(255) @map("cpf_cnpj")
+  dataNascimento                         DateTime? @map("data_nascimento") @db.Date
+  rg                                     String?   @db.VarChar(255)
+  orgaoExpedidor                         String?   @db.VarChar(255) @map("orgao_expedidor")
+  nomeMae                                String?   @db.VarChar(255) @map("nome_mae")
+  fone                                   String?   @db.VarChar(255)
+  email                                  String?   @db.VarChar(255)
+  financeiroContatoNome                  String?   @db.VarChar(255) @map("financeiro_contato_nome")
+  financeiroContatoFone                  String?   @db.VarChar(255) @map("financeiro_contato_fone")
+  financeiroContatoEmail                 String?   @db.VarChar(255) @map("financeiro_contato_email")
+  tipoConselhoClasse                     Int?      @db.SmallInt @map("tipo_conselho_classe")
+  numeroConselhoClasse                   String?   @db.VarChar(255) @map("numero_conselho_classe")
+  procedimentos                          Boolean   @default(false)
+  material                               Boolean   @default(false)
+  taxa                                   Boolean   @default(false)
+  medicamentos                           Boolean   @default(false)
+  ativo                                  Boolean   @default(true)
+  createdAt                              DateTime  @default(now()) @map("created_at")
+  updatedAt                              DateTime  @updatedAt @map("updated_at")
+  deletedAt                              DateTime? @map("deleted_at")
+
+  classificacaoEstabelecimento PrestadorClassificacaoEstabelecimento @relation(fields: [prestadoresClassificacaoEstabelecimentoId], references: [id])
+  prestadorTipo                PrestadorTipo? @relation(fields: [prestadorTipoId], references: [id])
+  orgaoExpedidorUf             Estado?        @relation("OrgaoExpedidorUfPrestador", fields: [orgaoExpedidorUfId], references: [id])
+  naturalidadeEstado           Estado?        @relation("NaturalidadeEstadoPrestador", fields: [naturalidadeEstadoId], references: [id])
+  naturalidadeCidade           Cidade?        @relation("NaturalidadeCidadePrestador", fields: [naturalidadeCidadeId], references: [id])
+  especialidades               PrestadorEspecialidade[]
+  contratos                    PrestadorContrato[]
+  contratoProfissionais        ContratoProfissional[]
+  guias                        Guia[]         @relation("PrestadorGuia")
+  guiasProfissional            Guia[]         @relation("ProfissionalGuia")
+  guiasSolicitante             Guia[]         @relation("SolicitanteGuia")
+  lotesPagamento               LotePagamento[]
+  lancamentos                  Lancamento[]
+  guiaImportacoes              GuiaImportacao[]
+  usuarios                     PrestadorUsuario[]
+  solicitacoesAtualizacao      SolicitacaoAtualizacaoCadastral[]
+  profiles                     Profile[]
+
+  @@unique([cpfCnpj])
+  @@index([ativo])
+  @@map("prestadores")
+}
+
+model PrestadorUsuario {
+  prestadorId BigInt @map("prestador_id")
+  userId      String @map("user_id") @db.Uuid
+
+  prestador Prestador @relation(fields: [prestadorId], references: [id])
+
+  @@id([prestadorId, userId])
+  @@map("prestador_usuarios")
+}
+
+model PrestadorEspecialidade {
+  prestadorId    BigInt @map("prestador_id")
+  especialidadeId BigInt @map("especialidade_id")
+
+  prestador    Prestador    @relation(fields: [prestadorId], references: [id])
+  especialidade Especialidade @relation(fields: [especialidadeId], references: [id])
+
+  @@id([prestadorId, especialidadeId])
+  @@map("prestador_especialidades")
+}
+
+model PrestadorContrato {
+  id          BigInt    @id @default(autoincrement())
+  prestadorId BigInt    @map("prestador_id")
+  data        DateTime  @db.Date
+  codigo      String    @db.VarChar(255)
+  ocorrencia  String?   @db.VarChar(255)
+  objeto      String    @db.VarChar(255)
+  observacoes String?   @db.VarChar(255)
+  reclamacoes String?   @db.VarChar(255)
+  ativo       Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  prestador      Prestador               @relation(fields: [prestadorId], references: [id])
+  itens          PrestadorContratoItem[]
+  profissionais  ContratoProfissional[]
+  fiscalItens    FiscalContratoItem[]
+
+  @@index([prestadorId])
+  @@map("prestador_contratos")
+}
+
+model PrestadorContratoItem {
+  id                    BigInt    @id @default(autoincrement())
+  prestadoresContratosId BigInt   @map("prestadores_contratos_id")
+  edicaoMedicamentoId   BigInt    @map("edicao_medicamento_id")
+  acrescimoMedicamentos Decimal?  @db.Decimal(8,2) @map("acrescimo_medicamentos")
+  tabelaPrecosId        BigInt?   @map("tabela_precos_id")
+  motivoEncerramentoId  BigInt?   @map("motivo_encerramento_id")
+  dataInicio            DateTime  @map("data_inicio") @db.Date
+  dataFim               DateTime  @map("data_fim") @db.Date
+  tipo                  Int       @db.SmallInt
+  ativo                 Boolean   @default(true)
+  orcamentoPrevisto     Decimal?  @db.Decimal(8,2) @map("orcamento_previsto")
+  dataEncerramento      DateTime? @map("data_encerramento")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  contrato           PrestadorContrato  @relation(fields: [prestadoresContratosId], references: [id])
+  edicaoMedicamento  MedicamentoEdicao  @relation(fields: [edicaoMedicamentoId], references: [id])
+  tabelaPrecos       TabelaPreco?       @relation(fields: [tabelaPrecosId], references: [id])
+  motivoEncerramento MotivoEncerramento? @relation(fields: [motivoEncerramentoId], references: [id])
+  deflatores         Deflator[]
+
+  @@map("prestador_contrato_itens")
+}
+
+model Deflator {
+  id                     BigInt    @id @default(autoincrement())
+  prestadoresContratosId BigInt    @map("prestadores_contratos_id")
+  procedimentoGrupoId    Int       @map("procedimento_grupo_id")
+  tipo                   Int       @db.SmallInt
+  percentual             Decimal   @db.Decimal(8,2)
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  deletedAt              DateTime? @map("deleted_at")
+
+  prestadorContratoItem PrestadorContratoItem @relation(fields: [prestadoresContratosId], references: [id])
+  grupoProcedimento     ProcedimentoGrupo     @relation(fields: [procedimentoGrupoId], references: [id])
+
+  @@map("deflatores")
+}
+
+model ContratoProfissional {
+  id          BigInt    @id @default(autoincrement())
+  contratoId  BigInt    @map("contrato_id")
+  prestadorId BigInt    @map("prestador_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  contrato  PrestadorContrato @relation(fields: [contratoId], references: [id])
+  prestador Prestador         @relation(fields: [prestadorId], references: [id])
+
+  @@map("contrato_profissionais")
+}
+
+// ============================================================
+// MÓDULO: TABELAS MÉDICAS
+// ============================================================
+
+model ProcedimentoGrupo {
+  id        Int       @id @default(autoincrement())
+  codigo    String    @db.VarChar(255)
+  descricao String    @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  subgrupos               ProcedimentoSubgrupo[]
+  deflatores              Deflator[]
+  regrasCopartProcedimento RegraCoparticipacaoProcedimento[]
+
+  @@map("procedimentos_grupos")
+}
+
+model ProcedimentoSubgrupo {
+  id                                       Int       @id @default(autoincrement())
+  grupoId                                  Int       @map("grupo_id")
+  codigo                                   String    @db.VarChar(255)
+  descricao                                String    @db.VarChar(255)
+  percReducaoSegundoProcedimento           Decimal   @db.Decimal(8,2) @map("perc_reducao_segundo_procedimento")
+  percReducaoTerceiroProcedimentoEmDiante  Decimal   @db.Decimal(8,2) @map("perc_reducao_terceiro_procedimento_em_diante")
+  createdAt                                DateTime  @default(now()) @map("created_at")
+  updatedAt                                DateTime  @updatedAt @map("updated_at")
+  deletedAt                                DateTime? @map("deleted_at")
+
+  grupo        ProcedimentoGrupo @relation(fields: [grupoId], references: [id])
+  procedimentos Procedimento[]
+  regrasCopart RegraCoparticipacaoProcedimento[]
+
+  @@map("procedimento_subgrupos")
+}
+
+model Procedimento {
+  id                    Int       @id @default(autoincrement())
+  procedimentoSubgrupoId Int?     @map("procedimento_subgrupo_id")
+  codigo                String    @db.Text
+  descricao             String?   @db.Text
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  subgrupo     ProcedimentoSubgrupo?             @relation(fields: [procedimentoSubgrupoId], references: [id])
+  cbhpm        Cbhpm[]
+  regrasCopart RegraCoparticipacaoProcedimento[]
+
+  @@index([codigo])
+  @@map("procedimentos")
+}
+
+model CbhpmEdicao {
+  id        BigInt    @id @default(autoincrement())
+  anoEdicao Int       @map("ano_edicao")
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  cbhpms       Cbhpm[]
+  tabelaPrecos TabelaPreco[]
+
+  @@map("cbhpm_edicoes")
+}
+
+model PorteAnestesico {
+  porteAnestesico String  @id @db.VarChar(255) @map("porte_anestesico")
+  porte           String? @db.VarChar(255)
+
+  cbhpms Cbhpm[]
+
+  @@map("porte_anestesicos")
+}
+
+model Cbhpm {
+  id               BigInt    @id @default(autoincrement())
+  cbhpmEdicaoId    BigInt    @map("cbhpm_edicao_id")
+  procedimentoId   Int       @map("procedimento_id")
+  codigoPorte      String    @db.VarChar(255) @map("codigo_porte")
+  fracaoPorte      Decimal   @default(1) @db.Decimal(8,2) @map("fracao_porte")
+  qtdeUco          Decimal   @db.Decimal(13,3) @map("qtde_uco")
+  qtdeFilme        Decimal   @db.Decimal(13,3) @map("qtde_filme")
+  porteAnestesicoId String?  @map("porte_anestesico_id")
+  nroAuxiliares    Int?      @map("nro_auxiliares")
+  incidencia       Int?
+  ur               Boolean   @default(false)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  cbhpmEdicao     CbhpmEdicao     @relation(fields: [cbhpmEdicaoId], references: [id])
+  procedimento    Procedimento    @relation(fields: [procedimentoId], references: [id])
+  porteAnestesico PorteAnestesico? @relation(fields: [porteAnestesicoId], references: [porteAnestesico])
+
+  @@index([cbhpmEdicaoId])
+  @@map("cbhpm")
+}
+
+model ComunicadoEdicao {
+  id        BigInt    @id @default(autoincrement())
+  anoEdicao Int       @map("ano_edicao")
+  uco       Decimal   @db.Decimal(8,2)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  portes       ComunicadoPorte[]
+  tabelaPrecos TabelaPreco[]
+
+  @@map("comunicado_edicoes")
+}
+
+model ComunicadoPorte {
+  id                BigInt    @id @default(autoincrement())
+  comunicadoEdicaoId BigInt   @map("comunicado_edicao_id")
+  codigoPorte       String    @db.VarChar(255) @map("codigo_porte")
+  valor             Decimal   @db.Decimal(8,2)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  comunicadoEdicao ComunicadoEdicao @relation(fields: [comunicadoEdicaoId], references: [id])
+
+  @@map("comunicado_portes")
+}
+
+model MaterialEdicao {
+  id        BigInt    @id @default(autoincrement())
+  edicao    String    @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  itens        MaterialItem[]
+  tabelaPrecos TabelaPreco[]
+
+  @@map("material_edicoes")
+}
+
+model Material {
+  id        BigInt    @id @default(autoincrement())
+  tipo      Int
+  codigo    String    @db.VarChar(255)
+  descricao String    @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  itens MaterialItem[]
+
+  @@map("materiais")
+}
+
+model MaterialItem {
+  id               BigInt    @id @default(autoincrement())
+  materialEdicaoId BigInt    @map("material_edicao_id")
+  materialId       BigInt    @map("material_id")
+  valor            Decimal   @db.Decimal(8,2)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  materialEdicao MaterialEdicao @relation(fields: [materialEdicaoId], references: [id])
+  material       Material       @relation(fields: [materialId], references: [id])
+
+  @@map("materiais_itens")
+}
+
+model Laboratorio {
+  id        BigInt    @id @default(autoincrement())
+  descricao String    @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  medicamentos Medicamento[]
+
+  @@map("laboratorios")
+}
+
+model MedicamentoEdicao {
+  id        BigInt    @id @default(autoincrement())
+  edicao    String    @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  medicamentos        Medicamento[]
+  brasindice          MedicamentoBrasindice[]
+  contratoItens       PrestadorContratoItem[]
+
+  @@map("medicamento_edicoes")
+}
+
+model Medicamento {
+  id                 BigInt    @id @default(autoincrement())
+  laboratorioId      BigInt    @map("laboratorio_id")
+  medicamentoEdicaoId BigInt   @map("medicamento_edicao_id")
+  codigo             String    @db.VarChar(255)
+  bras               String    @db.VarChar(255)
+  in_                String    @db.VarChar(255) @map("in_")
+  dice               String    @db.VarChar(255)
+  descricao          String    @db.VarChar(255)
+  apresentacao       String    @db.VarChar(255)
+  qtdeEmbalagem      Int       @map("qtde_embalagem")
+  ultimaVersao       Int       @map("ultima_versao")
+  ean                String    @db.VarChar(255)
+  ggrem              String    @db.VarChar(255)
+  anvisa             String    @db.VarChar(255)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  laboratorio       Laboratorio       @relation(fields: [laboratorioId], references: [id])
+  medicamentoEdicao MedicamentoEdicao @relation(fields: [medicamentoEdicaoId], references: [id])
+  brasindice        MedicamentoBrasindice[]
+
+  @@index([codigo])
+  @@map("medicamentos")
+}
+
+model MedicamentoBrasindice {
+  id                  BigInt   @id @default(autoincrement())
+  medicamentoEdicaoId BigInt   @map("medicamento_edicao_id")
+  medicamentoId       BigInt   @map("medicamento_id")
+  pmc                 Decimal  @default(0) @db.Decimal(15,2)
+  pfab                Decimal  @default(0) @db.Decimal(15,2)
+  fracaoPfab          Decimal  @default(0) @db.Decimal(15,2) @map("fracao_pfab")
+  fracaoPmc           Decimal  @default(0) @db.Decimal(15,2) @map("fracao_pmc")
+  ativo               Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  medicamentoEdicao MedicamentoEdicao @relation(fields: [medicamentoEdicaoId], references: [id])
+  medicamento       Medicamento       @relation(fields: [medicamentoId], references: [id])
+
+  @@index([medicamentoId])
+  @@map("medicamento_brasindice")
+}
+
+model TabelaPreco {
+  id                 BigInt    @id @default(autoincrement())
+  nome               String    @db.VarChar(255)
+  comunicadoEdicaoId BigInt    @map("comunicado_edicao_id")
+  cbhpmEdicaoId      BigInt    @map("cbhpm_edicao_id")
+  materialEdicaoId   BigInt    @map("material_edicao_id")
+  valorUco           Decimal   @db.Decimal(8,2) @map("valor_uco")
+  valorFilme         Decimal   @db.Decimal(8,2) @map("valor_filme")
+  ativo              Boolean   @default(true)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  comunicadoEdicao ComunicadoEdicao @relation(fields: [comunicadoEdicaoId], references: [id])
+  cbhpmEdicao      CbhpmEdicao      @relation(fields: [cbhpmEdicaoId], references: [id])
+  materialEdicao   MaterialEdicao   @relation(fields: [materialEdicaoId], references: [id])
+  itens            TabelaPrecoItem[]
+  contratoItens    PrestadorContratoItem[]
+
+  @@map("tabela_precos")
+}
+
+model TabelaPrecoItem {
+  id              BigInt   @id @default(autoincrement())
+  tabelaPrecoId   BigInt   @map("tabela_preco_id")
+  tipo            Int      @db.SmallInt @default(1)
+  referenciaId    Int      @map("referencia_id")
+  valorPorte      Decimal  @db.Decimal(8,2) @map("valor_porte")
+  fracaoPorte     Decimal  @db.Decimal(8,2) @map("fracao_porte")
+  qtdeUco         Decimal  @db.Decimal(8,2) @map("qtde_uco")
+  valorUco        Decimal  @db.Decimal(8,2) @map("valor_uco")
+  qtdeFilme       Decimal  @db.Decimal(8,2) @map("qtde_filme")
+  valorFilme      Decimal  @db.Decimal(8,2) @map("valor_filme")
+  valorTotal      Decimal  @db.Decimal(8,2) @map("valor_total")
+  valorCustomizado Decimal? @db.Decimal(8,2) @map("valor_customizado")
+  valorFinal      Decimal  @db.Decimal(8,2) @map("valor_final")
+  precoCustomizado Boolean @default(false) @map("preco_customizado")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tabelaPreco TabelaPreco @relation(fields: [tabelaPrecoId], references: [id])
+
+  @@index([tabelaPrecoId])
+  @@map("tabela_precos_itens")
+}
+
+model Taxa {
+  id        BigInt    @id @default(autoincrement())
+  codigo    String    @db.VarChar(255)
+  descricao String?   @db.VarChar(255)
+  tipo      Int       @db.SmallInt @default(1)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("taxas")
+}
+
+model Cid {
+  id           BigInt   @id @default(autoincrement())
+  codigo       String   @db.VarChar(255)
+  descricao    String   @db.VarChar(255)
+  sexoAplicavel String  @db.VarChar(255) @map("sexo_aplicavel")
+  grave        Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([codigo])
+  @@map("cid")
+}
+
+// ============================================================
+// MÓDULO: AUTORIZAÇÕES (GUIAS)
+// ============================================================
+
+model GuiaImportacao {
+  id                    BigInt    @id @default(autoincrement())
+  sequencialTransacao   Int       @map("sequencial_transacao")
+  lote                  Int
+  dataHoraArquivo       DateTime  @map("data_hora_arquivo")
+  prestadorId           BigInt?   @map("prestador_id")
+  userId                String?   @map("user_id") @db.Uuid
+  versaoLayout          String    @db.VarChar(255) @map("versao_layout")
+  arquivo               String    @db.VarChar(255)
+  disco                 String    @db.VarChar(255)
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  prestador Prestador? @relation(fields: [prestadorId], references: [id])
+  guias     Guia[]
+
+  @@map("guia_importacoes")
+}
+
+model GuiaMotivoEncerramento {
+  id                  BigInt    @id @default(autoincrement())
+  codigo              String    @db.VarChar(255)
+  termo               String    @db.VarChar(255)
+  dataInicioVigencia  DateTime? @map("data_inicio_vigencia") @db.Date
+  dataFimVigencia     DateTime? @map("data_fim_vigencia") @db.Date
+  dataFimImplantacao  DateTime? @map("data_fim_implantacao") @db.Date
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  deletedAt           DateTime? @map("deleted_at")
+
+  @@map("guia_motivo_encerramento")
+}
+
+model Guia {
+  id                       BigInt                @id @default(autoincrement())
+  operadoraId              BigInt                @map("operadora_id")
+  prestadorId              BigInt?               @map("prestador_id")
+  profissionalId           BigInt?               @map("profissional_id")
+  conveniadoId             BigInt?               @map("conveniado_id")
+  solicitantePrestadorId   BigInt?               @map("solicitante_prestador_id")
+  lotePagamentoId          BigInt?               @map("lote_pagamento_id")
+  guiaImportacaoId         BigInt?               @map("guia_importacao_id")
+  guiaOrigemId             BigInt?               @map("guia_origem_id")
+  canceladoPorUserId       String?               @map("cancelado_por_user_id") @db.Uuid
+  usuarioEmissorId         String?               @map("usuario_emissor_id") @db.Uuid
+  dataHora                 DateTime              @default(now()) @map("data_hora")
+  tipoLancamento           Int                   @db.SmallInt @default(1) @map("tipo_lancamento")
+  tipoAutorizacao          Int                   @db.SmallInt @default(1) @map("tipo_autorizacao")
+  tipo                     TipoGuiaEnum          @default(CONSULTA)
+  caraterAtendimento       CaraterAtendimentoEnum @default(ELETIVO) @map("carater_atendimento")
+  indicacaoClinica         String?               @db.VarChar(255) @map("indicacao_clinica")
+  observacoes              String?               @db.VarChar(255)
+  observacoesInternas      String?               @db.VarChar(255) @map("observacoes_internas")
+  urgente                  Boolean               @default(false)
+  conferido                Boolean               @default(false)
+  status                   StatusGuiaEnum        @default(SOLICITADA)
+  dataHoraCancelamento     DateTime?             @map("data_hora_cancalamento")
+  motivoCancelamento       String?               @db.VarChar(255) @map("motivo_cancelamento")
+  justificaParaAuditoria   String?               @db.VarChar(255) @map("justifica_para_auditoria")
+  loteImportacao           Int?                  @map("lote_importacao")
+  numeroGuiaPrestador      Int?                  @map("numero_guia_prestador")
+  dataAutorizacao          DateTime?             @map("data_autorizacao") @db.Date
+  senha                    Int?
+  dataValidadeSenha        DateTime?             @map("data_validade_senha") @db.Date
+  tipoAutenticacao         Int?                  @db.SmallInt @map("tipo_autenticacao")
+  codigoAutenticacao       String?               @db.VarChar(255) @map("codigo_autenticacao")
+  autenticada              Boolean               @default(false)
+  createdAt                DateTime              @default(now()) @map("created_at")
+  updatedAt                DateTime              @updatedAt @map("updated_at")
+  deletedAt                DateTime?             @map("deleted_at")
+
+  operadora          Operadora        @relation(fields: [operadoraId], references: [id])
+  prestador          Prestador?       @relation("PrestadorGuia", fields: [prestadorId], references: [id])
+  profissional       Prestador?       @relation("ProfissionalGuia", fields: [profissionalId], references: [id])
+  solicitantePrestador Prestador?     @relation("SolicitanteGuia", fields: [solicitantePrestadorId], references: [id])
+  conveniado         Conveniado?      @relation(fields: [conveniadoId], references: [id])
+  lotePagamento      LotePagamento?   @relation(fields: [lotePagamentoId], references: [id])
+  guiaImportacao     GuiaImportacao?  @relation(fields: [guiaImportacaoId], references: [id])
+  guiaOrigem         Guia?            @relation("GuiaOrigem", fields: [guiaOrigemId], references: [id])
+  guiasDerivadas     Guia[]           @relation("GuiaOrigem")
+  itens              GuiaItem[]
+  historico          GuiaHistorico[]
+  anexos             GuiaAnexo[]
+  lancamentosGuias   LancamentoGuia[]
+
+  @@index([status])
+  @@index([conveniadoId])
+  @@index([prestadorId])
+  @@index([operadoraId])
+  @@map("guias")
+}
+
+model GuiaItem {
+  id                         BigInt    @id @default(autoincrement())
+  guiaId                     BigInt?   @map("guia_id")
+  tipo                       TipoGuiaItemEnum @default(PROCEDIMENTO)
+  referenciaTabela           String    @db.VarChar(255) @map("referencia_tabela")
+  referenciaId               Int?      @map("referencia_id")
+  dataHoraEmissao            DateTime  @default(now()) @map("data_hora_emissao")
+  dataHoraAutorizacao        DateTime? @map("data_hora_autorizacao")
+  dataHoraAtendimento        DateTime? @map("data_hora_atendimento")
+  dataExecucao               DateTime? @map("data_execucao") @db.Date
+  quantidadeSolicitada       Decimal?  @db.Decimal(8,2) @map("quantidade_solicitada")
+  quantidadeAtendida         Decimal?  @db.Decimal(8,2) @map("quantidade_atendida")
+  quantidadeGlosa            Decimal?  @db.Decimal(8,2) @map("quantidade_glosa")
+  quantidadeAutorizada       Decimal?  @db.Decimal(8,2) @map("quantidade_autorizada")
+  valorUnitario              Decimal?  @db.Decimal(8,2) @map("valor_unitario")
+  valorUnitarioGlosa         Decimal?  @db.Decimal(8,2) @map("valor_unitario_glosa")
+  percentualCoparticipacao   Decimal?  @db.Decimal(8,2) @map("percentual_cooparticipacao")
+  valorUnitarioCoparticipacao Decimal? @db.Decimal(8,2) @map("valor_unitario_coparticipacao")
+  valorTotalCoparticipacao   Decimal?  @db.Decimal(8,2) @map("valor_total_coparticipacao")
+  percentualItem             Decimal?  @db.Decimal(8,2) @map("percentual_item")
+  quantidadeFaturada         Decimal?  @db.Decimal(8,2) @map("quantidade_faturada")
+  valorUnitarioFaturado      Decimal?  @db.Decimal(8,2) @map("valor_unitario_faturado")
+  valorTotalFaturado         Decimal?  @db.Decimal(8,2) @map("valor_total_faturado")
+  valorTotal                 Decimal?  @db.Decimal(8,2) @map("valor_total")
+  reducaoAcrescimo           Decimal?  @db.Decimal(8,2) @map("reducao_acrescimo")
+  grauPart                   Int?      @map("grau_part")
+  status                     StatusGuiaEnum @default(SOLICITADA)
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+  deletedAt                  DateTime? @map("deleted_at")
+
+  guia        Guia?             @relation(fields: [guiaId], references: [id])
+  auditoria   GuiaAuditoria[]
+  atendimentos GuiaAtendimento[]
+  historico   GuiaHistorico[]
+
+  @@index([guiaId])
+  @@index([status])
+  @@map("guias_itens")
+}
+
+model GuiaHistorico {
+  id          BigInt    @id @default(autoincrement())
+  guiaId      BigInt    @map("guia_id")
+  guiaItemId  BigInt?   @map("guia_item_id")
+  userId      String    @map("usuario_id") @db.Uuid
+  dataHora    DateTime  @default(now()) @map("data_hora")
+  historico   String    @db.VarChar(255)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  guia     Guia      @relation(fields: [guiaId], references: [id])
+  guiaItem GuiaItem? @relation(fields: [guiaItemId], references: [id])
+
+  @@index([guiaId])
+  @@map("guias_historico")
+}
+
+model GuiaAuditoria {
+  id                   BigInt    @id @default(autoincrement())
+  guiaItensId          BigInt    @map("guia_itens_id")
+  analiseUserId        String    @map("analise_usuario_id") @db.Uuid
+  dataHoraAnalise      DateTime  @default(now()) @map("data_hora_analise")
+  quantidadeAutorizada Decimal   @db.Decimal(8,2) @map("quantidade_autorizada")
+  justificativa        String?   @db.VarChar(255)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  deletedAt            DateTime? @map("deleted_at")
+
+  guiaItem GuiaItem @relation(fields: [guiaItensId], references: [id])
+
+  @@index([guiaItensId])
+  @@map("guias_auditoria")
+}
+
+model GuiaAtendimento {
+  id          BigInt    @id @default(autoincrement())
+  guiaItensId BigInt?   @map("guia_itens_id")
+  userId      String?   @map("usuario_id") @db.Uuid
+  dataHora    DateTime  @default(now()) @map("data_hora")
+  quantidade  Decimal?  @db.Decimal(8,2)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  guiaItem GuiaItem? @relation(fields: [guiaItensId], references: [id])
+
+  @@map("guias_atendimentos")
+}
+
+model GuiaAnexo {
+  id        BigInt    @id @default(autoincrement())
+  guiaId    BigInt?   @map("guia_id")
+  nome      String?   @db.VarChar(255)
+  arquivoUrl String?  @map("arquivo_url") @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  guia Guia? @relation(fields: [guiaId], references: [id])
+
+  @@map("guias_anexos")
+}
+
+// ============================================================
+// MÓDULO: FINANCEIRO
+// ============================================================
+
+model Banco {
+  id        BigInt    @id @default(autoincrement())
+  codigo    String    @db.VarChar(255)
+  nome      String    @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  dadosBancarios DadoBancario[]
+
+  @@unique([codigo])
+  @@map("bancos")
+}
+
+model DadoBancario {
+  id        BigInt    @id @default(autoincrement())
+  bancoId   BigInt    @map("banco_id")
+  tipo      Int       @db.SmallInt
+  agencia   String?   @db.VarChar(255)
+  agenciaDv String?   @db.VarChar(255) @map("agencia_dv")
+  conta     String?   @db.VarChar(255)
+  contaDv   String?   @db.VarChar(255) @map("conta_dv")
+  operacao  String?   @db.VarChar(255)
+  pix       String?   @db.VarChar(255)
+  pixTipo   String?   @db.VarChar(255) @map("pix_tipo")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  banco Banco @relation(fields: [bancoId], references: [id])
+
+  @@map("dados_bancarios")
+}
+
+model GrupoVerba {
+  id        BigInt    @id @default(autoincrement())
+  nome      String    @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  verbas       EmpresaVerba[]
+  lancamentos  Lancamento[]
+  produtosPrecos ProdutoPreco[]
+  mensalidades Mensalidade[]
+
+  @@map("grupo_verbas")
+}
+
+model EmpresaVerba {
+  id           BigInt    @id @default(autoincrement())
+  empresaId    BigInt    @map("empresa_id")
+  grupoVerbaId BigInt?   @map("grupo_verba_id")
+  codigo       String    @db.VarChar(255)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  empresa    Empresa     @relation(fields: [empresaId], references: [id])
+  grupoVerba GrupoVerba? @relation(fields: [grupoVerbaId], references: [id])
+
+  @@map("empresas_verbas")
+}
+
+model LotePagamento {
+  id                  BigInt          @id @default(autoincrement())
+  prestadorId         BigInt          @map("prestador_id")
+  userId              String          @map("usuario_id") @db.Uuid
+  lancamentoId        BigInt?         @map("lancamento_id")
+  dataHora            DateTime        @map("data_hora")
+  referenciaPagamento DateTime        @map("referencia_pagamento") @db.Date
+  status              StatusLoteEnum  @default(ABERTO)
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+  deletedAt           DateTime?       @map("deleted_at")
+
+  prestador   Prestador    @relation(fields: [prestadorId], references: [id])
+  lancamento  Lancamento?  @relation(fields: [lancamentoId], references: [id])
+  guias       Guia[]
+
+  @@index([prestadorId])
+  @@index([status])
+  @@map("lote_pagamentos")
+}
+
+model Lancamento {
+  id              BigInt               @id @default(autoincrement())
+  operadoraId     BigInt               @map("operadora_id")
+  prestadorId     BigInt?              @map("prestador_id")
+  conveniadoId    BigInt?              @map("conveniado_id")
+  grupoVerbaId    BigInt?              @map("grupo_verba_id")
+  tipo            Int                  @db.SmallInt @default(1)
+  tipoLancamento  TipoLancamentoEnum   @default(MENSALIDADE) @map("tipo_lancamento")
+  dataHora        DateTime             @default(now()) @map("data_hora")
+  dataVencimento  DateTime             @map("data_vencimento")
+  dataBaixa       DateTime?            @map("data_baixa")
+  tipoPagamento   Int                  @db.SmallInt @default(1) @map("tipo_pagamento")
+  competenciaFolha String?             @db.VarChar(255) @map("competencia_folha")
+  descricao       String?              @db.VarChar(255)
+  valor           Decimal              @db.Decimal(8,2)
+  status          StatusLancamentoEnum @default(ABERTO)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  deletedAt       DateTime?            @map("deleted_at")
+
+  operadora   Operadora    @relation(fields: [operadoraId], references: [id])
+  prestador   Prestador?   @relation(fields: [prestadorId], references: [id])
+  conveniado  Conveniado?  @relation(fields: [conveniadoId], references: [id])
+  grupoVerba  GrupoVerba?  @relation(fields: [grupoVerbaId], references: [id])
+  guias       LancamentoGuia[]
+  boletos     BoletoPagamento[]
+  lotesPagamento LotePagamento[]
+
+  @@index([operadoraId])
+  @@index([status])
+  @@map("lancamentos")
+}
+
+model LancamentoGuia {
+  id          BigInt    @id @default(autoincrement())
+  lancamentoId BigInt   @map("lancamento_id")
+  guiaId      BigInt    @map("guia_id")
+  valor       Decimal   @db.Decimal(8,2)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  lancamento Lancamento @relation(fields: [lancamentoId], references: [id])
+  guia       Guia       @relation(fields: [guiaId], references: [id])
+
+  @@map("lancamentos_guias")
+}
+
+model Boleto {
+  id                                   BigInt          @id @default(autoincrement())
+  operadoraId                          BigInt          @map("operadora_id")
+  pagadorCidadeId                      BigInt          @map("pagador_cidade_id")
+  dataEmissao                          DateTime        @map("data_emissao") @db.Date
+  dataVencimento                       DateTime        @map("data_vencimento") @db.Date
+  valorOriginal                        Decimal         @db.Decimal(8,2) @map("valor_original")
+  nossoNumero                          Int             @map("nosso_numero")
+  pagadorTipoInscricao                 String          @db.VarChar(255) @map("pagador_tipo_inscricao")
+  pagadorNumeroInscricao               String          @db.VarChar(255) @map("pagador_numero_inscricao")
+  pagadorNome                          String          @db.VarChar(255) @map("pagador_nome")
+  pagadorEndereco                      String          @db.VarChar(255) @map("pagador_endereco")
+  pagadorCep                           String          @db.VarChar(255) @map("pagador_cep")
+  pagadorBairro                        String          @db.VarChar(255) @map("pagador_bairro")
+  demonstrativo                        String?         @db.Text
+  indicadorPermissaoRecebimentoParcial String          @default("N") @db.VarChar(255) @map("indicador_permissao_recebimento_parcial")
+  indicadorPix                         String          @default("S") @db.VarChar(255) @map("indicador_pix")
+  pixQrcode                            String?         @db.VarChar(255) @map("pix_qrcode")
+  status                               StatusBoletoEnum @default(EMITIDO)
+  dataBaixa                            DateTime?       @map("data_baixa") @db.Date
+  boletoUrl                            String?         @map("boleto_url") @db.Text
+  createdAt                            DateTime        @default(now()) @map("created_at")
+  updatedAt                            DateTime        @updatedAt @map("updated_at")
+  deletedAt                            DateTime?       @map("deleted_at")
+
+  operadora     Operadora         @relation(fields: [operadoraId], references: [id])
+  pagadorCidade Cidade            @relation(fields: [pagadorCidadeId], references: [id])
+  lancamentos   BoletoPagamento[]
+
+  @@index([operadoraId])
+  @@index([status])
+  @@map("boletos")
+}
+
+model BoletoPagamento {
+  id          BigInt   @id @default(autoincrement())
+  boletoId    BigInt   @map("boleto_id")
+  lancamentoId BigInt  @map("lancamento_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  boleto     Boleto     @relation(fields: [boletoId], references: [id])
+  lancamento Lancamento @relation(fields: [lancamentoId], references: [id])
+
+  @@map("boleto_lancamentos")
+}
+
+model Mensalidade {
+  id             BigInt    @id @default(autoincrement())
+  conveniadoId   BigInt    @map("conveniado_id")
+  produtoPrecoId BigInt    @map("produto_preco_id")
+  grupoVerbaId   BigInt?   @map("grupo_verba_id")
+  competencia    DateTime  @db.Date
+  salario        Decimal   @db.Decimal(8,2)
+  percentual     Decimal   @db.Decimal(8,2)
+  valor          Decimal   @db.Decimal(8,2)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  conveniado   Conveniado   @relation(fields: [conveniadoId], references: [id])
+  produtoPreco ProdutoPreco @relation(fields: [produtoPrecoId], references: [id])
+  grupoVerba   GrupoVerba?  @relation(fields: [grupoVerbaId], references: [id])
+
+  @@index([conveniadoId])
+  @@index([competencia])
+  @@map("mensalidades")
+}
+
+model RemessaDesconto {
+  id          BigInt    @id @default(autoincrement())
+  empresaId   BigInt    @map("empresa_id")
+  competencia DateTime  @db.Date
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  itens   RemessaDescontoItem[]
+
+  @@index([empresaId])
+  @@map("remessa_desconto")
+}
+
+model RemessaDescontoItem {
+  id                BigInt   @id @default(autoincrement())
+  remessaDescontoId BigInt   @map("remessa_desconto_id")
+  adesaoId          BigInt   @map("adesao_id")
+  matricula         String   @db.VarChar(255)
+  salario           Decimal  @db.Decimal(8,2)
+  descontoMaximo    Decimal  @db.Decimal(8,2) @map("desconto_maximo")
+  valorDivida       Decimal  @db.Decimal(8,2) @map("valor_divida")
+  coparticipacao    Decimal  @db.Decimal(8,2)
+  codigoEvento      String   @db.VarChar(255) @map("codigo_evento")
+  valor             Decimal  @db.Decimal(8,2)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  remessaDesconto RemessaDesconto @relation(fields: [remessaDescontoId], references: [id])
+  adesao          Adesao          @relation(fields: [adesaoId], references: [id])
+
+  @@map("remessa_desconto_item")
+}
+
+// ============================================================
+// MÓDULO: CREDENCIAMENTO
+// ============================================================
+
+model EditalCredenciamento {
+  id        BigInt    @id @default(autoincrement())
+  descricao String    @db.VarChar(255)
+  dataInicio DateTime @map("data_inicio") @db.Date
+  dataFim   DateTime  @map("data_fim") @db.Date
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  documentos     EditalCredenciamentoDocumento[]
+  solicitacoes   SolicitacaoCredenciamento[]
+
+  @@map("editais_credenciamento")
+}
+
+model DocumentoCredenciamento {
+  id                  BigInt    @id @default(autoincrement())
+  descricao           String    @db.VarChar(255)
+  complementoDescricao String?  @db.VarChar(255) @map("complemento_descricao")
+  obrigatorio         Boolean   @default(true)
+  ativo               Boolean   @default(true)
+  tipoPessoa          Int       @default(1) @map("tipo_pessoa")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  deletedAt           DateTime? @map("deleted_at")
+
+  editais      EditalCredenciamentoDocumento[]
+  solicitacoes SolicitacaoCredenciamentoDocumento[]
+
+  @@map("documentos_credenciamento")
+}
+
+model EditalCredenciamentoDocumento {
+  editalId               BigInt   @map("edital_id")
+  documentoCredenciamentoId BigInt @map("documento_credenciamento_id")
+  obrigatorio            Boolean  @default(false)
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  edital     EditalCredenciamento    @relation(fields: [editalId], references: [id])
+  documento  DocumentoCredenciamento @relation(fields: [documentoCredenciamentoId], references: [id])
+
+  @@id([editalId, documentoCredenciamentoId])
+  @@map("edital_credenciamento_documentos")
+}
+
+model SolicitacaoCredenciamento {
+  id                     BigInt                      @id @default(autoincrement())
+  editalCredenciamentoId BigInt                      @map("edital_credenciamento_id")
+  nome                   String                      @db.VarChar(255)
+  tipo                   Int                         @default(1)
+  cpfCnpj                String                      @db.VarChar(255) @map("cpf_cnpj")
+  responsavel            String                      @db.VarChar(255)
+  telefone               String                      @db.VarChar(255)
+  email                  String                      @db.VarChar(255)
+  createdAt              DateTime                    @default(now()) @map("created_at")
+  updatedAt              DateTime                    @updatedAt @map("updated_at")
+  deletedAt              DateTime?                   @map("deleted_at")
+
+  edital     EditalCredenciamento @relation(fields: [editalCredenciamentoId], references: [id])
+  documentos SolicitacaoCredenciamentoDocumento[]
+  historico  HistoricoCredenciamento[]
+
+  @@map("solicitacoes_credenciamento")
+}
+
+model SolicitacaoCredenciamentoDocumento {
+  id                         BigInt    @id @default(autoincrement())
+  solicitacoesCredenciamentoId BigInt  @map("solicitacoes_credenciamento_id")
+  documentoCredenciamentoId  BigInt    @map("documento_credenciamento_id")
+  arquivoUrl                 String?   @map("arquivo_url") @db.Text
+  nomeArquivo                String?   @db.VarChar(255) @map("nome_arquivo")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
+  solicitacao SolicitacaoCredenciamento @relation(fields: [solicitacoesCredenciamentoId], references: [id])
+  documento   DocumentoCredenciamento   @relation(fields: [documentoCredenciamentoId], references: [id])
+
+  @@map("solicitacoes_credenciamento_documentos")
+}
+
+model HistoricoCredenciamento {
+  id                         BigInt                      @id @default(autoincrement())
+  solicitacaoCredencimentoId BigInt                      @map("solicitacao_credencimento_id")
+  userId                     String                      @map("user_id") @db.Uuid
+  motivo                     String                      @db.VarChar(255)
+  status                     StatusCredenciamentoEnum
+  createdAt                  DateTime                    @default(now()) @map("created_at")
+  updatedAt                  DateTime                    @updatedAt @map("updated_at")
+
+  solicitacao SolicitacaoCredenciamento @relation(fields: [solicitacaoCredencimentoId], references: [id])
+
+  @@index([solicitacaoCredencimentoId])
+  @@map("historico_credenciamentos")
+}
+
+// ============================================================
+// MÓDULO: AUDITORIA E LOGS
+// ============================================================
+
+model AuditLog {
+  id          BigInt    @id @default(autoincrement())
+  dataHora    DateTime  @default(now()) @map("data_hora")
+  userId      String?   @map("usuario_id") @db.Uuid
+  usuarioNome String?   @map("usuario_nome") @db.Text
+  ip          String?   @db.Text
+  navegador   String?   @db.Text
+  recurso     String?   @db.Text
+  registroId  Int?      @map("registro_id")
+  action      Int?      @db.SmallInt
+  log         String?   @db.Text
+  url         String?   @db.VarChar(255)
+
+  @@index([userId])
+  @@index([dataHora])
+  @@map("audit_log")
+}
+
+// ============================================================
+// MÓDULO: OUTROS / AUXILIARES
+// ============================================================
+
+model SolicitacaoAtualizacaoCadastral {
+  id                    BigInt    @id @default(autoincrement())
+  prestadorId           BigInt?   @map("prestador_id")
+  conveniadoId          BigInt?   @map("conveniado_id")
+  cidadeId              BigInt    @map("cidade_id")
+  tipo                  Int       @db.SmallInt @default(1)
+  dataSolicitacao       DateTime  @default(now()) @map("data_solicitacao") @db.Date
+  endereco              String?   @db.VarChar(255)
+  enderecoNro           String?   @db.VarChar(255) @map("endereco_nro")
+  complemento           String?   @db.VarChar(255)
+  bairro                String?   @db.VarChar(255)
+  cep                   String?   @db.VarChar(255)
+  email                 String?   @db.VarChar(255)
+  telefone              String?   @db.VarChar(255)
+  celular               String?   @db.VarChar(255)
+  observacoes           String?   @db.VarChar(255)
+  comprovanteEnderecoUrl String?  @map("comprovante_endereco_url") @db.VarChar(255)
+  fotoUrl               String?   @map("foto_url") @db.VarChar(255)
+  status                Int       @db.SmallInt @default(1)
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  prestador  Prestador?  @relation(fields: [prestadorId], references: [id])
+  conveniado Conveniado? @relation(fields: [conveniadoId], references: [id])
+  cidade     Cidade      @relation(fields: [cidadeId], references: [id])
+
+  @@map("solicitacoes_atualizacao_cadastral")
+}
+
+model FiscalContrato {
+  id        BigInt    @id @default(autoincrement())
+  userId    String    @map("usuario_id") @db.Uuid
+  dataInicio DateTime @default(now()) @map("data_inicio") @db.Date
+  dataFim   DateTime  @map("data_fim") @db.Date
+  portaria  String    @db.VarChar(255)
+  ativo     Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  itens FiscalContratoItem[]
+
+  @@map("fiscal_contratos")
+}
+
+model FiscalContratoItem {
+  id              BigInt    @id @default(autoincrement())
+  fiscalContratoId BigInt   @map("fiscal_contrato_id")
+  contratoId      BigInt    @map("contrato_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  fiscalContrato FiscalContrato    @relation(fields: [fiscalContratoId], references: [id])
+  contrato       PrestadorContrato @relation(fields: [contratoId], references: [id])
+
+  @@map("fiscal_contrato_itens")
+}
+
+model CanalAtendimento {
+  id        BigInt    @id @default(autoincrement())
+  nome      String    @db.VarChar(255)
+  telefone  String?   @db.VarChar(255)
+  email     String?   @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("canais_atendimento")
+}
+
+model Mensagem {
+  id                  BigInt    @id @default(autoincrement())
+  perfilId            BigInt?   @map("perfil_id")
+  tipo                Int
+  titulo              String    @db.VarChar(255)
+  corpo               String    @db.Text
+  idadeInicial        Int?      @map("idade_inicial")
+  idadeFinal          Int?      @map("idade_final")
+  dataInicialExibicao DateTime? @map("data_inicial_exibicao") @db.Date
+  dataFinalExibicao   DateTime? @map("data_final_exibicao") @db.Date
+  visivel             Boolean   @default(true)
+  fixado              Boolean   @default(false)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  deletedAt           DateTime? @map("deleted_at")
+
+  @@map("mensagens")
+}
+
+model Parametro {
+  id             BigInt    @id @default(autoincrement())
+  parameter      String    @db.VarChar(255)
+  fieldLabel     String    @db.VarChar(255) @map("field_label")
+  component      String?   @db.Text
+  value          String?   @db.VarChar(255)
+  possibleValues String?   @db.VarChar(255) @map("possible_values")
+  deletedAt      DateTime? @map("deleted_at")
+
+  @@map("parametros")
+}
